@@ -9,9 +9,9 @@ import argparse
 from time import time
 from tqdm import tqdm
 
-import tensorflow # needs to call tensorflow before torch, otherwise crush
-sys.path.append('Utils')
-from logger import Logger
+# import tensorflow # needs to call tensorflow before torch, otherwise crush
+# sys.path.append('Utils')
+# from logger import Logger
 
 import torch
 import torch.nn as nn
@@ -27,11 +27,11 @@ parser = argparse.ArgumentParser(description='Train JigsawPuzzleSolver on Imagen
 parser.add_argument('data', type=str, help='Path to Imagenet folder')
 parser.add_argument('--model', default=None, type=str, help='Path to pretrained model')
 parser.add_argument('--classes', default=1000, type=int, help='Number of permutation to use')
-parser.add_argument('--gpu', default=0, type=int, help='gpu id')
+parser.add_argument('--gpu', default=2, type=int, help='gpu id')
 parser.add_argument('--epochs', default=70, type=int, help='number of total epochs for training')
 parser.add_argument('--iter_start', default=0, type=int, help='Starting iteration count')
 parser.add_argument('--batch', default=256, type=int, help='batch size')
-parser.add_argument('--checkpoint', default='checkpoints/', type=str, help='checkpoint folder')
+parser.add_argument('--checkpoint', default='./checkpoints', type=str, help='checkpoint folder')
 parser.add_argument('--lr', default=0.001, type=float, help='learning rate for SGD optimizer')
 parser.add_argument('--cores', default=0, type=int, help='number of CPU core for loading')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -53,20 +53,20 @@ def main():
     print('Process number: %d'%(os.getpid()))
     
     ## DataLoader initialize ILSVRC2012_train_processed
-    trainpath = args.data+'/ILSVRC2012_img_train'
+    trainpath = args.data+'/Data/CLS-LOC/train'
     if os.path.exists(trainpath+'_255x255'):
         trainpath += '_255x255'
-    train_data = DataLoader(trainpath,args.data+'/ilsvrc12_train.txt',
+    train_data = DataLoader(trainpath,args.data+'/ImageSets/CLS-LOC/train_cls.txt',
                             classes=args.classes)
     train_loader = torch.utils.data.DataLoader(dataset=train_data,
                                             batch_size=args.batch,
                                             shuffle=True,
                                             num_workers=args.cores)
     
-    valpath = args.data+'/ILSVRC2012_img_val'
+    valpath = args.data+'/Data/CLS-LOC/val'
     if os.path.exists(valpath+'_255x255'):
         valpath += '_255x255'
-    val_data = DataLoader(valpath, args.data+'/ilsvrc12_val.txt',
+    val_data = DataLoader(valpath, args.data+'/ImageSets/CLS-LOC/val.txt',
                             classes=args.classes)
     val_loader = torch.utils.data.DataLoader(dataset=val_data,
                                             batch_size=args.batch,
@@ -102,8 +102,8 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(),lr=args.lr,momentum=0.9,weight_decay = 5e-4)
     
-    logger = Logger(args.checkpoint+'/train')
-    logger_test = Logger(args.checkpoint+'/test')
+    # logger = Logger(args.checkpoint+'/train')
+    # logger_test = Logger(args.checkpoint+'/test')
     
     ############## TESTING ###############
     if args.evaluate:
@@ -119,7 +119,7 @@ def main():
     steps = args.iter_start
     for epoch in range(int(args.iter_start/iter_per_epoch),args.epochs):
         if epoch%10==0 and epoch>0:
-            test(net,criterion,logger_test,val_loader,steps)
+            test(net,criterion,val_loader,steps)
         lr = adjust_learning_rate(optimizer, epoch, init_lr=args.lr, step=20, decay=0.1)
         
         end = time()
@@ -141,9 +141,11 @@ def main():
             net_time.append(time()-t)
             if len(net_time)>100:
                 del net_time[0]
-            
+        
+
             prec1, prec5 = compute_accuracy(outputs.cpu().data, labels.cpu().data, topk=(1, 5))
-            acc = prec1[0]
+
+            acc = prec1.item()
 
             loss = criterion(outputs, labels)
             loss.backward()
@@ -157,23 +159,22 @@ def main():
                             lr, loss,acc)))
 
             if steps%20==0:
-                logger.scalar_summary('accuracy', acc, steps)
-                logger.scalar_summary('loss', loss, steps)
+                # logger.scalar_summary('accuracy', acc, steps)
+                # logger.scalar_summary('loss', loss, steps)
                 
                 original = [im[0] for im in original]
                 imgs = np.zeros([9,75,75,3])
                 for ti, img in enumerate(original):
                     img = img.numpy()
-                    imgs[ti] = np.stack([(im-im.min())/(im.max()-im.min()) 
-                                         for im in img],axis=2)
+                    imgs[ti] = np.stack([(im-im.min())/(im.max()-im.min()) for im in img],axis=2)
                 
-                logger.image_summary('input', imgs, steps)
+                # logger.image_summary('input', imgs, steps)
 
             steps += 1
 
             if steps%1000==0:
-                filename = '%s/jps_%03i_%06d.pth.tar'%(args.checkpoint,epoch,steps)
-                net.save(filename)
+                filename = '/jps_%03i_%06d.pth.tar'%(epoch,steps)
+                net.save(args.checkpoint, filename)
                 print('Saved: '+args.checkpoint)
             
             end = time()
@@ -182,7 +183,7 @@ def main():
             # break without using CTRL+C
             break
 
-def test(net,criterion,logger,val_loader,steps):
+def test(net,criterion,val_loader,steps):
     print('Evaluating network.......')
     accuracy = []
     net.eval()
@@ -198,8 +199,8 @@ def test(net,criterion,logger,val_loader,steps):
         prec1, prec5 = compute_accuracy(outputs, labels, topk=(1, 5))
         accuracy.append(prec1[0])
 
-    if logger is not None:
-        logger.scalar_summary('accuracy', np.mean(accuracy), steps)
+    # if logger is not None:
+    #     logger.scalar_summary('accuracy', np.mean(accuracy), steps)
     print('TESTING: %d), Accuracy %.2f%%' %(steps,np.mean(accuracy)))
     net.train()
 

@@ -31,7 +31,7 @@ class DataLoader(data.Dataset):
         ])
 
     def __getitem__(self, index):
-        framename = self.data_path + '/' + self.names[index]
+        framename = self.data_path + '/' + self.names[index] + '.JPEG'
 
         img = Image.open(framename).convert('RGB')
         if np.random.rand() < 0.30:

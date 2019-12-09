@@ -9,6 +9,8 @@ import torch.nn as nn
 from torch import cat
 import torch.nn.init as init
 
+import os
+
 import sys
 sys.path.append('Utils')
 from Layers import LRN
@@ -62,8 +64,10 @@ class Network(nn.Module):
         self.load_state_dict(model_dict)
         print([k for k, v in list(pretrained_dict.items())])
 
-    def save(self,checkpoint):
-        torch.save(self.state_dict(), checkpoint)
+    def save(self,checkpoint, filename):
+        if not os.path.isdir(checkpoint):
+            os.mkdir(checkpoint)
+        torch.save(self.state_dict(), checkpoint+filename)
     
     def forward(self, x):
         B,T,C,H,W = x.size()
